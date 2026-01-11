@@ -1,0 +1,59 @@
+# Python virtual environments
+venv/
+venv_new/
+env/
+ENV/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Logs and data
+logs/
+*.log
+*.csv
+*.jsonl
+
+# Models (large files)
+models/*.pt
+models/*.onnx
+models/*.hef
+!models/.gitkeep
+
+# Datasets
+datasets/
+*.jpg
+*.png
+*.mp4
+*.avi
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+debug_crops/
+temp/
+
+# Firebase credentials (if any)
+*-firebase-adminsdk-*.json
+serviceAccountKey.json

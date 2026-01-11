@@ -1,0 +1,73 @@
+models:
+  detector_pt: models/license_plate_detector.pt  # PROPER LICENSE PLATE DETECTOR
+  detector_onnx: models/yolov8n-license_plate_int8.onnx  # ONNX license plate detector
+  detector_hef: models/plate_yolov8.hef  # Hailo compiled YOLOv8 for Raspberry Pi 5
+  ocr_backend: easyocr  # easyocr (with GPU) works better for this camera
+  ocr_langs: [en]
+  ocr_pt: models/ocr_crnn.pth
+  ocr_onnx: models/ocr_crnn.onnx
+  ocr_hef: models/ocr_crnn.hef  # Hailo compiled CRNN for Raspberry Pi 5
+
+inference:
+  device: cuda  # RTX 2050 GPU enabled - CUDA 12.1
+  conf_threshold: 0.25  # Lowered threshold for better plate detection
+  iou_threshold: 0.5
+  max_det: 10  # Limit detections for speed
+  frame_skip: 2  # RTX 2050 handles every 2nd frame smoothly
+  input_size: 640  # License plate model works best at 640
+  use_onnx: false  # Use PyTorch with CUDA (better for RTX 2050)
+  use_hailo: false  # Hailo is for Raspberry Pi only
+  detector_only: false
+  apply_clahe: true
+
+io:
+  # Single camera mode (legacy)
+  source: "rtsp://admin:admin%40123@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
+  
+  # Camera OSD (On-Screen Display) masking - ignore timestamp/text overlays
+  mask_osd: true  # Enable OSD masking
+  mask_top_percent: 20  # Mask top 20% of frame (timestamp)
+  mask_bottom_percent: 15  # Mask bottom 15% of frame (CANTEEN text)
+  
+  # Multi-camera mode (for entry/exit gates)
+  multi_camera: false  # Disable for testing
+  cameras:
+    in:  # Entry camera - Prama IP Camera (ONVIF mainStream)
+      # Using ONVIF-discovered RTSP URL (mainStream, Channel 101)
+      # For RTSP, use the main admin credentials (Digest auth):
+      # admin / Navacbe@2024  -> @ must be URL-encoded as %40
+      source: "rtsp://admin:admin%40123@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
+      # If you want lower resolution (subStream), you can switch to:
+      # source: "rtsp://admin:Navacbe%402024@192.168.1.64:554/Streaming/Channels/102?transportmode=unicast&profile=Profile_2"
+      camera_type: "in"  # "in" for entry, "out" for exit
+      enabled: true
+    out:  # Exit camera - Disabled (no camera available)
+      source: ""  # No exit camera
+      camera_type: "out"
+      enabled: false  # Disable exit camera
+  
+  output_mode: both  # overlay | json | both
+  save_jsonl: logs/plates.jsonl
+  save_csv: logs/plates.csv
+
+# Firebase gate control
+firebase:
+  enabled: true  # Enable Firebase gate control
+  auto_close_delay: 10  # Auto-close gate after 5 seconds (0 to disable)
+
+# Cloudinary photo upload
+cloudinary:
+  enabled: true  # Enable photo capture and upload to Cloudinary
+  # Set to true to capture and upload vehicle photos when valid plates are detected
+
+postprocess:
+  enable_confusion_correction: true
+  min_len: 6
+  max_len: 12
+  regex_set: default
+
+server:
+  host: 0.0.0.0
+  port: 8000
+
+
