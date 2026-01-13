@@ -12,16 +12,10 @@ __pycache__/
 *.so
 .Python
 
-logs/
-*.log
-*.csv
-*.jsonl
+
 
 # Models (large files)
-models/*.pt
-models/*.onnx
-models/*.hef
-!models/.gitkeep
+
 
 # Datasets
 datasets/
@@ -63,6 +57,4 @@ src/cloudinary_upload.py
 monitor_firebase.py
 FIREBASE_INTEGRATION_STATUS.md
 
-# Exceptions (allow these specific files)
-!logs/parking_database.csv
-!logs/session_log_template.csv
+
