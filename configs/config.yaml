@@ -15,7 +15,7 @@ inference:
   max_det: 10  # Limit detections for speed
   frame_skip: 2  # RTX 2050 handles every 2nd frame smoothly
   input_size: 640  # License plate model works best at 640
-  use_onnx: false  # Use PyTorch with CUDA (better for RTX 2050)
+  use_onnx: true  # Use ONNX Runtime (required as only .onnx model is present)
   use_hailo: false  # Hailo is for Raspberry Pi only
   detector_only: false
   apply_clahe: true
