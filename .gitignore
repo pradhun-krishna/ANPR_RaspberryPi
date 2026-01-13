@@ -12,7 +12,6 @@ __pycache__/
 *.so
 .Python
 
-# Logs and data
 logs/
 *.log
 *.csv
@@ -57,3 +56,13 @@ temp/
 # Firebase credentials (if any)
 *-firebase-adminsdk-*.json
 serviceAccountKey.json
+
+# Internal/Sensitive files (kept locally but ignored)
+src/firebase_gate.py
+src/cloudinary_upload.py
+monitor_firebase.py
+FIREBASE_INTEGRATION_STATUS.md
+
+# Exceptions (allow these specific files)
+!logs/parking_database.csv
+!logs/session_log_template.csv

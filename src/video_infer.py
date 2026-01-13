@@ -13,14 +13,11 @@ import yaml
 from src.detector import PlateDetector
 from src.recognizer import OCRRecognizer
 from src.postprocess import (
-    validate,
     validate_with_state_priority,
     load_permanent_parking_db,
     find_matching_plate,
     update_session_csv,
 )
-from src.firebase_gate import control_gate, test_connection
-from src.cloudinary_upload import upload_car_photo
 
 
 def draw_overlay(frame, detections, fps: float):
@@ -77,11 +74,6 @@ def load_config(path: str):
         return yaml.safe_load(f)
 
 
-def save_car_photo(frame, crop, plate_text, bbox, captures_dir=None):
-    """
-    Upload car photo to Cloudinary in background thread (no performance impact).
-    """
-    upload_car_photo(frame, crop, plate_text, bbox)
 
 
 def main():
@@ -133,27 +125,16 @@ def main():
         )
 
     # Load permanent parking database
+    db_cfg = cfg.get("database", {})
     permanent_parking_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "logs", "shobha_permanent_parking.csv"
+        os.path.dirname(os.path.dirname(__file__)), db_cfg.get("path", "logs/parking_database.csv")
     )
     session_csv_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "logs", "shobha_permanent_parking_sessions.csv"
+        os.path.dirname(os.path.dirname(__file__)), db_cfg.get("session_path", "logs/session_log.csv")
     )
     permanent_parking_db = load_permanent_parking_db(permanent_parking_path)
     print(f"Loaded {len(permanent_parking_db)} plates from permanent parking database")
 
-    # Check Firebase gate control (REST, no auth)
-    firebase_cfg = cfg.get("firebase", {})
-    firebase_enabled = firebase_cfg.get("enabled", False)
-    auto_close_delay = firebase_cfg.get("auto_close_delay", 10)
-    camera_type = cfg.get("io", {}).get("camera_type", "in")  # single 'in' gate
-
-    if firebase_enabled:
-        if test_connection():
-            print("✅ Firebase REST reachable - Gate control enabled")
-        else:
-            print("⚠️  Firebase REST not reachable - Gate control disabled")
-            firebase_enabled = False
 
     # Check if multi-camera mode is enabled
     multi_camera = io.get("multi_camera", False)
@@ -174,9 +155,10 @@ def main():
     stop_flag = threading.Event()
     last_gate_open_time = {}  # Track when gate was last opened per plate
     
-    # Photo capture settings (upload to Cloudinary - free, no performance impact)
-    capture_enabled = cfg.get("io", {}).get("save_photos", True)  # Enable by default
-    captured_plates = set()  # Track which plates we've already captured (one photo per plate per day)
+
+    # Photo capture settings 
+    capture_enabled = False  # Disabled for open source release
+    captured_plates = set() 
 
     def capture_thread():
         idx = 0
@@ -452,37 +434,6 @@ def main():
                             f"✅ Matched plate {vehicle_number} (ID: {matched_data.get('id')}) - updated session CSV"
                         )
 
-                        # Photo capture (background thread - no performance impact)
-                        if capture_enabled and det.get("frame") is not None and det.get("crop") is not None:
-                            plate_key = f"{datetime.now().strftime('%Y-%m-%d')}_{vehicle_number}"
-                            if plate_key not in captured_plates:
-                                captured_plates.add(plate_key)
-                                # Save photo in background thread
-                                threading.Thread(
-                                    target=save_car_photo,
-                                    args=(
-                                        det["frame"],
-                                        det["crop"],
-                                        vehicle_number,
-                                        det["bbox"],
-                                    ),
-                                    daemon=True,
-                                ).start()
-
-                        # Gate control logic (only open - gate auto-closes)
-                        if firebase_enabled:
-                            current_time = time.time()
-                            last_open = last_gate_open_time.get(vehicle_number, 0)
-
-                            # Prevent rapid gate toggling - only open if last open was > 10 seconds ago
-                            if current_time - last_open > 10:
-                                success = control_gate(vehicle_number, camera_type, True)
-                                if success:
-                                    last_gate_open_time[vehicle_number] = current_time
-                                    print(
-                                        f"🚪 Gate opened for {vehicle_number} at {camera_type} camera"
-                                    )
-                                    # Note: Gate auto-closes, no need to call close_gate()
             if overlay:
                 out = draw_overlay(frame.copy(), detections, fps)
                 cv2.imshow("ANPR-India", out)

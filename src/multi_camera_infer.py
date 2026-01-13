@@ -19,14 +19,11 @@ import yaml
 from src.detector import PlateDetector
 from src.recognizer import OCRRecognizer
 from src.postprocess import (
-    validate,
     validate_with_state_priority,
     load_permanent_parking_db,
     find_matching_plate,
     update_session_csv,
 )
-from src.firebase_gate import control_gate, test_connection
-from src.cloudinary_upload import upload_car_photo
 
 
 def draw_overlay(frame, detections, fps: float, camera_type: str = ""):
@@ -156,11 +153,6 @@ def load_config(path: str):
         return yaml.safe_load(f)
 
 
-def save_car_photo(frame, crop, plate_text, bbox, captures_dir=None):
-    """
-    Upload car photo to Cloudinary in background thread (no performance impact).
-    """
-    upload_car_photo(frame, crop, plate_text, bbox)
 
 
 def open_camera_source(source):
@@ -196,7 +188,6 @@ def process_camera(
     session_csv_path: str,
     cfg: Dict,
     stop_flag: threading.Event,
-    firebase_enabled: bool = True,
     auto_close_delay: int = 5,
 ):
     """Process a single camera stream"""
@@ -221,7 +212,7 @@ def process_camera(
     mode = cfg.get("io", {}).get("output_mode", "both")
 
     # Photo capture configuration (shared across threads)
-    capture_enabled = cfg.get("cloudinary", {}).get("enabled", False)
+    capture_enabled = False  # Disabled for open source
     captured_plates = set()  # Track plates already captured today
 
     q_frames = queue.Queue(maxsize=5)
@@ -505,27 +496,7 @@ def process_camera(
                 detections.append(record)
 
                 # Gate control logic (only after OCR has run, i.e., after delay)
-                if matched_plate and ok and firebase_enabled and time_since_detection >= OCR_DELAY_SECONDS:
-                    vehicle_number = matched_plate.get("vehicle_number", plate_text)
-                    # Prevent rapid gate toggling - only open if last open was > 10 seconds ago
-                    current_time = time.time()
-                    last_open = last_gate_open_time.get(vehicle_number, 0)
-
-                    if current_time - last_open > 10:  # 10 second cooldown per plate
-                        success = control_gate(vehicle_number, camera_type, True)
-                        if success:
-                            last_gate_open_time[vehicle_number] = current_time
-                            print(
-                                f"✅ Gate opened for {vehicle_number} at {camera_type} camera"
-                            )
-                            # Log gate access for approved vehicle
-                            gate_log_path = os.path.join(
-                                os.path.dirname(os.path.dirname(__file__)),
-                                "logs",
-                                "gate_access_log.csv"
-                            )
-                            write_gate_access_log(gate_log_path, vehicle_number, approved=True)
-                            # Note: Gate auto-closes, no need to call close_gate()
+                # Gate control removed for open source release
 
             end = time.time()
             dt = end - start
@@ -580,22 +551,6 @@ def process_camera(
                         update_session_csv(session_csv_path, session_data)
                         
                         # Photo capture (background thread - no performance impact)
-                        vehicle_number = matched_data.get("vehicle_number", det["plate_text"])
-                        if capture_enabled and det.get("frame") is not None and det.get("crop") is not None:
-                            plate_key = f"{datetime.now().strftime('%Y-%m-%d')}_{vehicle_number}"
-                            if plate_key not in captured_plates:
-                                captured_plates.add(plate_key)
-                                # Save photo in background thread
-                                threading.Thread(
-                                    target=save_car_photo,
-                                    args=(
-                                        det["frame"],
-                                        det["crop"],
-                                        vehicle_number,
-                                        det["bbox"],
-                                    ),
-                                    daemon=True,
-                                ).start()
 
             if overlay:
                 out = draw_overlay(frame.copy(), detections, fps, camera_type)
@@ -672,25 +627,17 @@ def main():
         )
 
     # Load permanent parking database
+    db_cfg = cfg.get("database", {})
     permanent_parking_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "logs", "shobha_permanent_parking.csv"
+        os.path.dirname(os.path.dirname(__file__)), db_cfg.get("path", "logs/parking_database.csv")
     )
     session_csv_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "logs", "shobha_permanent_parking_sessions.csv"
+        os.path.dirname(os.path.dirname(__file__)), db_cfg.get("session_path", "logs/session_log.csv")
     )
     permanent_parking_db = load_permanent_parking_db(permanent_parking_path)
     print(f"Loaded {len(permanent_parking_db)} plates from permanent parking database")
 
     # Initialize Firebase if enabled (REST, no auth)
-    firebase_enabled = firebase_cfg.get("enabled", True)
-    auto_close_delay = firebase_cfg.get("auto_close_delay", 10)
-
-    if firebase_enabled:
-        if test_connection():
-            print("✅ Firebase REST reachable - Gate control enabled")
-        else:
-            print("⚠️  Firebase REST not reachable - Gate control disabled")
-            firebase_enabled = False
 
     # Check if multi-camera mode is enabled
     multi_camera = io.get("multi_camera", False)
@@ -718,7 +665,6 @@ def main():
                     session_csv_path,
                     cfg,
                     stop_flag,
-                    firebase_enabled,
                     auto_close_delay,
                 ),
                 daemon=True,
@@ -759,7 +705,6 @@ def main():
             session_csv_path,
             cfg,
             stop_flag,
-            firebase_enabled,
             auto_close_delay,
         )
 

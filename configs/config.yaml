@@ -22,7 +22,7 @@ inference:
 
 io:
   # Single camera mode (legacy)
-  source: "rtsp://admin:admin%40123@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
+  source: 0  # Default to webcam
   
   # Camera OSD (On-Screen Display) masking - ignore timestamp/text overlays
   mask_osd: true  # Enable OSD masking
@@ -32,33 +32,18 @@ io:
   # Multi-camera mode (for entry/exit gates)
   multi_camera: false  # Disable for testing
   cameras:
-    in:  # Entry camera - Prama IP Camera (ONVIF mainStream)
-      # Using ONVIF-discovered RTSP URL (mainStream, Channel 101)
-      # For RTSP, use the main admin credentials (Digest auth):
-      # admin / Navacbe@2024  -> @ must be URL-encoded as %40
-      source: "rtsp://admin:admin%40123@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
-      # If you want lower resolution (subStream), you can switch to:
-      # source: "rtsp://admin:Navacbe%402024@192.168.1.64:554/Streaming/Channels/102?transportmode=unicast&profile=Profile_2"
+    in:  # Entry camera
+      source: "rtsp://username:password@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
       camera_type: "in"  # "in" for entry, "out" for exit
       enabled: true
-    out:  # Exit camera - Disabled (no camera available)
+    out:  # Exit camera
       source: ""  # No exit camera
       camera_type: "out"
-      enabled: false  # Disable exit camera
+      enabled: false
   
   output_mode: both  # overlay | json | both
   save_jsonl: logs/plates.jsonl
   save_csv: logs/plates.csv
-
-# Firebase gate control
-firebase:
-  enabled: true  # Enable Firebase gate control
-  auto_close_delay: 10  # Auto-close gate after 5 seconds (0 to disable)
-
-# Cloudinary photo upload
-cloudinary:
-  enabled: true  # Enable photo capture and upload to Cloudinary
-  # Set to true to capture and upload vehicle photos when valid plates are detected
 
 postprocess:
   enable_confusion_correction: true
@@ -70,4 +55,6 @@ server:
   host: 0.0.0.0
   port: 8000
 
-
+database:
+  path: logs/parking_database.csv
+  session_path: logs/session_log.csv
